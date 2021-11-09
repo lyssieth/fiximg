@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-blake3 = { version = "1.0.0", features = ["rayon"] }
+blake3 = { version = "1.2.0", features = ["rayon"] }
 oxipng = { version = "5.0.0", default-features = false, features = [
     "filetime",
     "parallel",
