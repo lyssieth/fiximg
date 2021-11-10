@@ -9,6 +9,7 @@ license = "MIT"
 
 [dependencies]
 blake3 = { version = "1.2.0", features = ["rayon"] }
+clap = { version = "3.0.0-beta.5", features = ["wrap_help"] }
 oxipng = { version = "5.0.0", default-features = false, features = [
     "filetime",
     "parallel",

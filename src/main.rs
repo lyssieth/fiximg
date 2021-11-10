@@ -1,6 +1,7 @@
 #![warn(clippy::pedantic)]
 #![feature(once_cell)]
 
+use clap::{crate_authors, crate_version, App, Arg};
 use oxipng::{optimize_from_memory, Options};
 use std::{
     error::Error,
@@ -10,25 +11,74 @@ use std::{
     path::{Path, PathBuf},
     process::{self, Command},
 };
-
-static IN_DIR: SyncLazy<PathBuf> = SyncLazy::new(|| PathBuf::from("./data"));
-static OUT_DIR: SyncLazy<PathBuf> = SyncLazy::new(|| PathBuf::from("./data-out"));
+use util::check_jpegoptim;
 
 type Res<T> = Result<T, Box<dyn Error>>;
 
+mod util;
+
+#[derive(Debug, Clone)]
+struct Config {
+    in_dir: PathBuf,
+    out_dir: PathBuf,
+    rename_in_place: bool,
+    jpegoptim: String,
+}
+
 fn main() -> Res<()> {
-    if !IN_DIR.exists() {
-        return Err(Box::new(io::Error::new(
-            io::ErrorKind::NotFound,
-            "input directory not found",
-        )));
-    }
+    let jpegoptim = match check_jpegoptim() {
+        util::CheckResult::Ok(path) => path,
+        util::CheckResult::NotFound => {
+            #[cfg(unix)]
+            eprintln!("jpegoptim not found, please ensure there is a jpegoptim on the PATH");
+            #[cfg(target_os = "windows")]
+            eprintln!(
+                "jpegoptim.exe not found, please ensure there is a jpegoptim.exe on the PATH"
+            );
+            std::process::exit(1);
+        }
+    };
 
-    if !OUT_DIR.exists() {
-        fs::create_dir_all(&*OUT_DIR)?;
-    }
+    let app = App::new("fiximg")
+        .author(crate_authors!("\n"))
+        .version(crate_version!())
+        .about("An image optimization commandline utility.")
+        .arg(
+            Arg::new("input")
+                .about("The input directory")
+                .forbid_empty_values(true)
+                .required(true)
+                .takes_value(true)
+                .multiple_values(false)
+                .multiple_occurrences(false)
+                .validator(util::is_dir),
+        )
+        .arg(
+            Arg::new("output")
+                .about("The output directory")
+                .forbid_empty_values(true)
+                .required_unless_present("rename_in_place")
+                .takes_value(true)
+                .multiple_values(false)
+                .multiple_occurrences(false)
+                .validator(util::is_dir),
+        )
+        .arg(
+            Arg::new("rename_in_place")
+                .about("Rename the input files in place")
+                .takes_value(false)
+                .multiple_occurrences(false),
+        )
+        .get_matches();
 
-    let read = read_dir(&*IN_DIR)?;
+    let cfg = Config {
+        in_dir: app.value_of("input").unwrap().into(),
+        out_dir: app.value_of("output").unwrap().into(),
+        rename_in_place: app.is_present("rename_in_place"),
+        jpegoptim,
+    };
+
+    let read = read_dir(&cfg.in_dir)?;
 
     let mut items = Vec::new();
 
@@ -52,12 +102,14 @@ fn main() -> Res<()> {
 
     let mut queue = Vec::new();
 
-    items.iter().for_each(|x| match run_item(x) {
-        Ok(_) => {}
-        Err(e) => {
-            queue.push(format!("{:?}: {}", x.path, e));
-        }
-    });
+    items
+        .iter()
+        .for_each(|x| match run_item(x, cfg.out_dir.clone()) {
+            Ok(_) => {}
+            Err(e) => {
+                queue.push(format!("{:?}: {}", x.path, e));
+            }
+        });
 
     for x in queue {
         println!("{}", x);
@@ -66,7 +118,7 @@ fn main() -> Res<()> {
     Ok(())
 }
 
-fn run_item(item: &Item) -> Res<()> {
+fn run_item(item: &Item, mut out_path: PathBuf) -> Res<()> {
     println!("Doing {:?}", item.path);
     let buf = match item.file_type {
         FileType::Png => run_png(&item.path),
@@ -80,8 +132,6 @@ fn run_item(item: &Item) -> Res<()> {
         .extension()
         .and_then(std::ffi::OsStr::to_str)
         .unwrap_or_default();
-
-    let mut out_path = OUT_DIR.clone();
 
     out_path.push(format!("{}.{}", hash, ext));
 
