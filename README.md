@@ -20,6 +20,7 @@ The output file format is `BLAKE3_HASH.EXT`.
 
 ## To-do
 
+- [ ] Detection method for `jpegoptim` (`which jpegoptim` into a shell probably, will need a windows solution too, since there is a version of jpegoptim available for Windows)
 - [ ] A proper command line program, instead of expecting everything
 - [ ] Various configuration settings
 - [ ] Maybe a library version that can be imported into other programs
