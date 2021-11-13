@@ -1,13 +1,12 @@
 #![warn(clippy::pedantic)]
-#![feature(once_cell)]
 
 use clap::{crate_authors, crate_version, App, Arg};
 use oxipng::{optimize_from_memory, Options};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::{
     error::Error,
-    fs::{self, read_dir, OpenOptions},
-    io::{self, Read, Write},
-    lazy::SyncLazy,
+    fs::{read_dir, rename, OpenOptions},
+    io::{Read, Write},
     path::{Path, PathBuf},
     process::{self, Command},
 };
@@ -21,7 +20,7 @@ mod util;
 struct Config {
     in_dir: PathBuf,
     out_dir: PathBuf,
-    rename_in_place: bool,
+    rename: bool,
     jpegoptim: String,
 }
 
@@ -57,25 +56,34 @@ fn main() -> Res<()> {
             Arg::new("output")
                 .about("The output directory")
                 .forbid_empty_values(true)
-                .required_unless_present("rename_in_place")
+                .required_unless_present("rename-in-place")
                 .takes_value(true)
                 .multiple_values(false)
                 .multiple_occurrences(false)
                 .validator(util::is_dir),
         )
         .arg(
-            Arg::new("rename_in_place")
+            Arg::new("rename-in-place")
                 .about("Rename the input files in place")
+                .long("rename-in-place")
                 .takes_value(false)
                 .multiple_occurrences(false),
         )
         .get_matches();
 
-    let cfg = Config {
-        in_dir: app.value_of("input").unwrap().into(),
-        out_dir: app.value_of("output").unwrap().into(),
-        rename_in_place: app.is_present("rename_in_place"),
-        jpegoptim,
+    let cfg = {
+        let rename_in_place = app.is_present("rename-in-place");
+
+        Config {
+            in_dir: app.value_of("input").unwrap().into(),
+            out_dir: if rename_in_place {
+                app.value_of("input").unwrap().into()
+            } else {
+                app.value_of("output").unwrap().into()
+            },
+            rename: rename_in_place,
+            jpegoptim,
+        }
     };
 
     let read = read_dir(&cfg.in_dir)?;
@@ -100,29 +108,22 @@ fn main() -> Res<()> {
         }
     });
 
-    let mut queue = Vec::new();
-
-    items
-        .iter()
-        .for_each(|x| match run_item(x, cfg.out_dir.clone()) {
-            Ok(_) => {}
-            Err(e) => {
-                queue.push(format!("{:?}: {}", x.path, e));
-            }
-        });
-
-    for x in queue {
-        println!("{}", x);
-    }
+    items.par_iter().for_each(|x| match run_item(x, &cfg) {
+        Ok(_) => {}
+        Err(e) => {
+            println!("{:?}: {}", x.path, e);
+        }
+    });
 
     Ok(())
 }
 
-fn run_item(item: &Item, mut out_path: PathBuf) -> Res<()> {
+fn run_item(item: &Item, cfg: &Config) -> Res<()> {
     println!("Doing {:?}", item.path);
+    let mut out_path = cfg.out_dir.clone();
     let buf = match item.file_type {
         FileType::Png => run_png(&item.path),
-        FileType::Jpeg => run_jpeg(&item.path),
+        FileType::Jpeg => run_jpeg(&item.path, &cfg.jpegoptim),
         FileType::Other => run_other(&item.path),
     }?;
 
@@ -135,12 +136,16 @@ fn run_item(item: &Item, mut out_path: PathBuf) -> Res<()> {
 
     out_path.push(format!("{}.{}", hash, ext));
 
-    let mut f = OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(out_path)?;
+    if cfg.rename {
+        rename(&item.path, &out_path)?;
+    } else {
+        let mut f = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(out_path)?;
 
-    f.write_all(&buf)?;
+        f.write_all(&buf)?;
+    }
 
     Ok(())
 }
@@ -155,12 +160,12 @@ fn run_png(path: &Path) -> Res<Vec<u8>> {
     Ok(res)
 }
 
-fn run_jpeg(path: &Path) -> Res<Vec<u8>> {
+fn run_jpeg(path: &Path, jpegoptim: &str) -> Res<Vec<u8>> {
     let mut buf = Vec::new();
     let mut data = OpenOptions::new().read(true).open(&path)?;
     data.read_to_end(&mut buf)?;
 
-    let mut cmd = Command::new("jpegoptim")
+    let mut cmd = Command::new(jpegoptim)
         .arg("--stdin")
         .arg("--stdout")
         .stdin(process::Stdio::piped())
