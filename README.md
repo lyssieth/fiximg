@@ -8,21 +8,23 @@ Please make sure [`jpegoptim`](https://github.com/tjko/jpegoptim) is installed, 
 
 ## Usage
 
-> ```bash
-> $ fiximg
-> ```
+```bash
+$ fiximg <input> <output>
+# Doing ...
+# Doing ...
+# Doing ...
+```
 
-This assumes a `./data` directory where the original images are.  
-It automatically creates a `./data-out` directory where the output will be.
+Both `input` and `output` directories must exist.
 
 Currently, it only knows how to optimize `.png` and `.jpeg`/`.jpg` files.  
 The output file format is `BLAKE3_HASH.EXT`.
 
 ## To-do
 
-- [ ] Detection method for `jpegoptim` (`which jpegoptim` into a shell probably, will need a windows solution too, since there is a version of jpegoptim available for Windows)
-- [ ] A proper command line program, instead of expecting everything
-- [ ] Various configuration settings
+- [x] Detection method for `jpegoptim` (`which jpegoptim` into a shell probably, will need a windows solution too, since there is a version of jpegoptim available for Windows)
+- [x] A proper command line program, instead of expecting everything
+- [x] Various configuration settings
 - [ ] Maybe a library version that can be imported into other programs
 - [ ] Better console output
 
