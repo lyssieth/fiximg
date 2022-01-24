@@ -41,10 +41,10 @@ fn main() -> Res<()> {
     let app = App::new("fiximg")
         .author(crate_authors!("\n"))
         .version(crate_version!())
-        .about("An image optimization commandline utility.")
+        .override_help("An image optimization commandline utility.")
         .arg(
             Arg::new("input")
-                .about("The input directory")
+                .help("The input directory")
                 .forbid_empty_values(true)
                 .required(true)
                 .takes_value(true)
@@ -54,7 +54,7 @@ fn main() -> Res<()> {
         )
         .arg(
             Arg::new("output")
-                .about("The output directory")
+                .help("The output directory")
                 .forbid_empty_values(true)
                 .required_unless_present("rename-in-place")
                 .takes_value(true)
@@ -64,7 +64,7 @@ fn main() -> Res<()> {
         )
         .arg(
             Arg::new("rename-in-place")
-                .about("Rename the input files in place")
+                .help("Rename the input files in place")
                 .long("rename-in-place")
                 .takes_value(false)
                 .multiple_occurrences(false),

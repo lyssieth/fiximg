@@ -8,9 +8,9 @@ license = "MIT"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-blake3 = { version = "1.2.0", features = ["rayon"] }
-clap = { version = "3.0.0-beta.5", features = ["wrap_help"] }
-oxipng = { version = "5.0.0", default-features = false, features = [
+blake3 = { version = "1.3.0", features = ["rayon"] }
+clap = { version = "3.0.10", features = ["wrap_help", "cargo"] }
+oxipng = { version = "5.0.1", default-features = false, features = [
     "filetime",
     "parallel",
     "libdeflater",
